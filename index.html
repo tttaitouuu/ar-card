@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <title>AR Card</title>
+    <style>
+      html,body{margin:0;overflow:hidden;}
+      .ui{
+        position: fixed; inset: 12px auto auto 12px; display:flex; gap:8px; z-index:9999;
+      }
+      .ui-right{
+        position: fixed; inset: 12px 12px auto auto; display:flex; gap:8px; z-index:9999;
+      }
+      button{
+        font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif;
+        padding:10px 12px; border-radius:12px; border:1px solid #0003; background:#fff9; backdrop-filter: blur(6px);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ▼ URLクエリから facing を取得（?facing=user で内カメ） -->
+    <script>
+      const params = new URLSearchParams(location.search);
+      const facing = (params.get('facing') || 'environment'); // 'environment' or 'user'
+    </script>
+
+    <!-- detectionMode等に加え、sourceType/webcam と facingMode を指定 -->
+    <a-scene
+      id="scene"
+      embedded
+      screenshot
+      arjs="debugUIEnabled:false; sourceType: webcam; detectionMode: mono; patternRatio: 0.9; maxDetectionRate: 30"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true; preserveDrawingBuffer: true;">
+      
+      <a-assets>
+        <a-asset-item id="m" src="./assets/ism.glb"></a-asset-item>
+      </a-assets>
+
+      <!-- スムージングで揺れ軽減 -->
+      <a-marker
+        id="marker"
+        type="pattern"
+        url="./assets/myqr.patt"
+        smooth="true"
+        smoothCount="5"
+        smoothTolerance="0.01"
+        smoothThreshold="5">
+        
+        <a-entity id="model"
+          gltf-model="#m"
+          rotation="-25 0 0"
+          scale="0.7 0.7 0.7"
+          position="0 0.5 0">
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera="near:0.01; far:20000"></a-entity>
+    </a-scene>
+
+    <!-- 左上：写真撮影 / 右上：カメラ切替 -->
+    <div class="ui">
+      <button id="shotBtn">📸 写真を保存</button>
+    </div>
+    <div class="ui-right">
+      <button id="switchBtn">🔁 カメラ切替</button>
+    </div>
+
+    <script>
+      // ----- AR.js に facingMode を反映（初期化前に属性へ埋め込む） -----
+      // arjs の DOM 属性を更新（facingMode は ar.js 側の getUserMedia に渡される）
+      const scene = document.querySelector('#scene');
+      const orig = scene.getAttribute('arjs');
+      scene.setAttribute('arjs', orig + `; facingMode: ${facing}`);
+
+      // ----- marker 瞬断のデバウンス（そのまま流用） -----
+      (function(){
+        const marker = document.querySelector('#marker');
+        const model  = document.querySelector('#model');
+        let lostTimer = null;
+
+        marker.addEventListener('markerFound', () => {
+          if (lostTimer) { clearTimeout(lostTimer); lostTimer = null; }
+          if (model) model.setAttribute('visible', true);
+        });
+        marker.addEventListener('markerLost', () => {
+          lostTimer = setTimeout(() => {
+            if (model) model.setAttribute('visible', false);
+          }, 200);
+        });
+      })();
+
+      // ----- 写真撮影：A-Frame screenshot コンポーネント -----
+      // preserveDrawingBuffer:true にしてあるので toDataURL が使える
+      document.getElementById('shotBtn').addEventListener('click', () => {
+        const sc = scene.components.screenshot;
+        // 'perspective' で通常視点をキャプチャ（デバイスの向きに連動）
+        const canvas = sc.getCanvas('perspective');
+        if (!canvas) return;
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        const ts = new Date().toISOString().replace(/[:.]/g,'-');
+        a.download = `ar-shot-${ts}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+
+      // ----- カメラ切替：URLクエリをトグルして再読み込み（安定・簡単） -----
+      document.getElementById('switchBtn').addEventListener('click', () => {
+        const next = (facing === 'environment') ? 'user' : 'environment';
+        const p = new URLSearchParams(location.search);
+        p.set('facing', next);
+        location.search = '?' + p.toString(); // ページを再初期化→AR.jsが新しい facingMode で起動
+      });
+    </script>
+  </body>
+</html>
