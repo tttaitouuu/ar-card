@@ -24,7 +24,10 @@
     embedded
     arjs="debugUIEnabled:false; detectionMode: mono; patternRatio: 0.9; maxDetectionRate: 30"
     vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true;">
+    renderer="colorManagement: true; toneMapping: none; outputEncoding: sRGBEncoding; logarithmicDepthBuffer: true;"
+
+    <a-entity light="type: ambient; color: #ffffff; intensity: 1.2"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 1.0" position="1 2 1"></a-entity>
     
     <!-- 色味の偏りを抑えるためのニュートラル照明（PBRの場合）
          ※ Blenderで Unlit(Emission) にしている場合は消してOK -->
